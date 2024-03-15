@@ -240,6 +240,7 @@ classdef Klift
             end
         end
 
+
         function [ basisdot ] = def_basisdot( obj , basis )
             %get_basisdot: Define the symbolic derivative of basis
             % functions in terms of the output (y) and state (x)
@@ -313,6 +314,77 @@ classdef Klift
                     end
 
                     K(j,i) = double( innerprod ) / basis_norm(i);
+                end
+            end
+            toc
+            
+            obj.Kmtx = K;  % store as class object
+
+            % for backwards compatibility
+            obj.scaleup.z = eye(obj.params.Nfull);
+            obj.scaledown.z =  obj.scaleup.z^(-1);
+        end
+
+        % get_koopman_mc_old: Identify elements of Koopman matrix using Monte Carlo integration
+        function [ obj , K ] = get_koopman_mc_old( obj )
+            %get_koopman: Identify the Koopman operator projected onto basis
+            %   using Monte Carlo integration
+            
+            % local shorthand
+            n = obj.params.n;
+            m = obj.params.m;
+            N = obj.params.N;
+            basis = obj.fullbasis.x;
+            basisdot = obj.fullbasisdot.x;
+            x = obj.sys.x;
+            u = obj.sys.u;
+            dx = obj.sys.dx;
+            xdot = obj.sys.rhs;
+            basisdot = subs( basisdot, dx, xdot );
+            x_domain = obj.sys.x_domain .* ones(n,1);
+            u_domain = obj.sys.u_domain .* ones(m,1);
+            integral_domain = [x_domain; u_domain]; % since we integrate over state and input space
+
+            % sample over state and input space
+            ub = integral_domain(:,2);
+            lb = integral_domain(:,1);
+            sample_pts = ((ub - lb) .* rand( n+m, obj.num_samples ) + lb)';
+            weight_func = @(x) exp( sum( -x.^2 ) ); % hermite polynomial ip weight function
+
+            % evaluate basis and basisdot at all grid points
+            basis_points = zeros( size(sample_pts,1) , obj.params.Nfull );
+            basisdot_points = zeros( size(sample_pts,1) , obj.params.Nfull );
+            weight_points = zeros( size(sample_pts,1) , 1 );
+            for i = 1 : size(sample_pts,1)
+                x_k = sample_pts(i,1:n)';
+                u_k = sample_pts(i,n+1:end)';
+                xdot_k = pinv( obj.get_massmtx( 0 , x_k ) ) * obj.get_rhs( 0 , x_k , u_k );
+                % xdot_k = obj.get_rhs( 0 , x_k , u_k );
+
+                basis_points(i,:) = obj.lift.fullbasis.x( x_k , u_k )';
+                basisdot_points(i,:) = obj.lift.fullbasisdot.x( x_k , u_k , xdot_k )';
+                % weight_points(i,:) = weight_func( [x_k;u_k] ); % DEBUG: Should u be included? hermite polynomial ip weight function
+                weight_points(i,:) = weight_func( x_k ); % hermite polynomial ip weight function
+            end
+
+            % compute each entry in koopman matrix via projection
+            K = zeros(N+m,N+m); % analytic koopman matrix
+            tic
+            basis_norm = zeros( N+m , 1 );
+            for i = 1 : N+m    % compute the inner product of each basisdot elem. with each basis elem.
+                % norm_integrand = basis(i)^2 * exp( sum(-x.^2) ); 
+                % basis_norm_check = obj.intN_mc( norm_integrand , [x;u], integral_domain(:,1) , integral_domain(:,2), obj.num_samples );
+
+                norm_integrand_pts = basis_points(:,i).^2 .* weight_points;
+                basis_norm(i) = obj.intN_mc_points( norm_integrand_pts , integral_domain(:,1) , integral_domain(:,2) );
+                for j = 1 : N+m
+                    % ip_integrand = basisdot(j) * basis(i) * exp( sum(-x.^2) );
+                    % innerprod_check = obj.intN_mc( ip_integrand , [x;u], integral_domain(:,1) , integral_domain(:,2), obj.num_samples );
+
+                    ip_integrand_pts = basisdot_points(:,j) .* basis_points(:,i) .* weight_points;
+                    innerprod = obj.intN_mc_points( ip_integrand_pts , integral_domain(:,1) , integral_domain(:,2) );
+
+                    K(j,i) = innerprod / basis_norm(i); 
                 end
             end
             toc
@@ -415,6 +487,130 @@ classdef Klift
             obj.scaledown.z =  obj.scaleup.z^(-1);
         end
 
+        function [ obj , K , K_dis ] = get_koopman_massmtx( obj )
+            %get_koopman_massmtx Identify an approximation of the Koopman
+            %  operator projected onto basis by sampling over state space.
+            %  This is for systems that have a mass matrix D in front of
+            %  xdot, i.e., D*xdot = f(x,u)
+            %
+            % This uses an experimental way of approximating the inner
+            % products of functions
+
+            tic
+
+            % local shorthand
+            n = obj.params.n;
+            m = obj.params.m;
+            N = obj.params.N;
+            basis = obj.fullbasis;
+            basisdot = obj.fullbasisdot;
+            x = obj.sys.x;
+            u = obj.sys.u;
+            x_domain = obj.sys.x_domain;
+            u_domain = obj.sys.u_domain; % [0,1].*ones(6,1);
+            lb = -pi/12; %obj.sys.x_domain(1,1);    % REDUCE BOUNDS, was sampling over too large space
+            ub = pi/12; %obj.sys.x_domain(1,2);     % REDUCE BOUNDS, was sampling over too large space
+
+            % original sampling approach %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % discretize over state and input space
+            grid_lines = cell(obj.params.n+obj.params.m,1);
+            grid_mesh = cell(numel(grid_lines),1);
+            for i = 1 : obj.params.n
+                if i <= size(x_domain,1)
+                    grid_lines{i} = linspace( x_domain(i,1) , x_domain(i,2) , obj.integral_res );
+                else    % in case dimensions of x_domain are wrong
+                    % grid_lines{i} = linspace( -1 , 1 , obj.integral_res );
+                    grid_lines{i} = linspace( x_domain(1,1) , x_domain(1,2) , obj.integral_res );
+                end
+            end
+            for i = 1 : obj.params.m
+                grid_lines{i+obj.params.n} = linspace( u_domain(i,1) , u_domain(i,2) , obj.integral_res );
+            end
+            [grid_mesh{1:numel(grid_lines)}] = ndgrid(grid_lines{:}); %use comma-separated list expansion on both sides
+
+            % list out all points in grid mesh in one data matrix
+            grid_points = zeros( numel(grid_mesh{1}) , obj.params.n + obj.params.m );
+            for i = 1 : obj.params.n + obj.params.m
+                grid_points(:,i) = grid_mesh{i}(:);
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%             % grid refinement sampling approach (Not working well)%%%%%%%%%%%%%%%%%%%%%%%%%%
+%             grid_lines = cell(obj.params.n+obj.params.m,1);
+%             grid_mesh = cell(numel(grid_lines),1);
+%             for i = 1 : obj.params.n
+%                 grid_lines{i} = linspace( x_domain(i,1) , x_domain(i,2) , obj.num_samples );
+%                 grid_lines_subset{i} = grid_lines{i}(1: floor(obj.num_samples/obj.integral_res) :end); 
+%             end
+%             for i = 1 : obj.params.m
+%                 grid_lines{i+obj.params.n} = linspace( u_domain(i,1) , u_domain(i,2) , obj.num_samples );
+%                 grid_lines_subset{i+obj.params.n} = grid_lines{i+obj.params.n}(1: floor(obj.num_samples/obj.integral_res) :end);
+%             end
+%             obj.grid_lines = grid_lines;    % store as class object for further model refinements
+%             [grid_mesh{1:numel(grid_lines_subset)}] = ndgrid(grid_lines_subset{:}); %use comma-separated list expansion on both sides
+% 
+%             % list out all points in grid mesh in one data matrix
+%             grid_points = zeros( numel(grid_mesh{1}) , obj.params.n + obj.params.m );
+%             for i = 1 : obj.params.n + obj.params.m
+%                 grid_points(:,i) = grid_mesh{i}(:);
+%             end
+
+            % % random sample over state and input space
+            % num_pts = obj.num_samples;   % number of points to sample in state/input space
+            % grid_points = [ (x_domain(1,2)-x_domain(1,1)) * rand(num_pts,obj.params.n) + x_domain(1,1) , (u_domain(1,2)-u_domain(1,1)) * rand(num_pts,obj.params.m) + u_domain(1,1) ];    % one input for all joints
+
+            % evaluate basisdot at all grid points
+            lifted_points = zeros( size(grid_points,1) , obj.params.Nfull );
+            lifted_points_dot = zeros( size(grid_points,1) , obj.params.Nfull );
+%             lifted_points_plus = zeros( size(grid_points,1) , obj.params.Nfull );
+            weights = zeros( size(grid_points,1) , 1 );
+            for i = 1 : size(grid_points,1) % NOTE: change back to parfor on Matlab 2022a
+                x_k = grid_points(i,1:n)';
+                u_k = grid_points(i,n+1:end)';
+
+                xdot_k = pinv( obj.get_massmtx( 0 , x_k ) ) * obj.get_rhs( 0 , x_k , u_k ); % note that there is a pinv here...
+                x_kp1 = x_k + xdot_k * obj.timestep;
+
+                lifted_points(i,:) = obj.lift.fullbasis.x( x_k , u_k )';
+                lifted_points_dot(i,:) = obj.lift.fullbasisdot.x( x_k , u_k , xdot_k )';
+%                 lifted_points_plus(i,:) = obj.lift.fullbasis.x( x_kp1 , u_k )';
+                
+                % weights(i,:) = exp( sum( -(x_k).^2 -(u_k).^2 ) ); % hermite polynomial ip weight function (yields model with a bunch of NaNs)
+                weights(i,:) = 1;   % eliminates function of weights
+            end
+
+            % scale data so no element is larger than 1
+%             obj.scaleup.z = diag( max( abs( [ lifted_points ; lifted_points_dot ] ) ) );    % diagonal matrix of largest elemnt of each state
+%             obj.scaleup.z = diag( max( abs( lifted_points ) ) );    % diagonal matrix of largest elemnt of each state
+%             obj.scaleup.zdot = diag( max( abs( lifted_points_dot ) ) );    % diagonal matrix of largest elemnt of each state
+            obj.scaleup.z = eye(obj.params.Nfull);  % DEBUG: remove scaling
+            obj.scaledown.z =  obj.scaleup.z^(-1);
+%             obj.scaledown.zdot = obj.scaleup.zdot^(-1);
+%             obj.scaledown.zdot(end-m+1:end,end-m+1:end) = zeros(m); % get rid of Infs
+            lifted_points_scaled = lifted_points * obj.scaledown.z;
+            lifted_points_dot_scaled = lifted_points_dot * obj.scaledown.z;
+%             lifted_points_dot_scaled = lifted_points_dot * obj.scaledown.zdot;
+
+
+            % solve for K_cts via an approximation of the inner products
+            ip_matrix = lifted_points_dot_scaled.' * ( lifted_points_scaled .* weights);
+            norm_vector = diag( lifted_points_scaled.' * ( lifted_points_scaled .* weights ) ).';    % isolate diagonal elements 
+            K_scaled = ip_matrix ./ norm_vector;    % CHECK IF IT'S SUPPOSED TO BE TRANSPOSE
+%             K = K_scaled;
+%             K = obj.scaleup.zdot * K_scaled;
+            K = obj.scaleup.z * K_scaled * obj.scaledown.z;
+            obj.Kmtx = K;    % store as class object
+
+            % solve for K_dis via least squares regression
+            K_dis = expm( K * obj.timestep ) ;   
+            obj.K_dis = K_dis;  % store as class object
+
+            obj.K_prods = ip_matrix;
+            obj.K_norms = norm_vector;
+
+            toc
+        end
+
         function result = num_sym_int( obj , fun , var , lb , ub , res )
             %num_sym_int Numerical integration on a symbolic expression
             %   Uses fixed-step to approximate integral over one (of
@@ -434,7 +630,76 @@ classdef Klift
 %             result = dx_vec' * vpa( [ height(1)/2 ; height(2:end-1) ; height(end)/2 ] );    % trapezoid rule
             result = dx_vec' * vpa( height );    % rectangle rule
         end
-                      
+        
+        function [ obj , K , K_dis ] = improve_koopman_massmtx( obj , varargin )
+            %Improves the Koopman matrix by considering additional sample
+            %points in the inner product approximation
+            %   Name/value pairs
+            %       'SampleType' - 'random' (default) or 'grid'
+            %       'NumPts' - any natural number (only affects random sampling)
+            %       'GridResolution' - any natural number (only affects grid sampling)
+            %       'GridScale' - Number between 0 and 1 (default). Scales all the grid points
+            
+            % set property values
+            properties.SampleType = 'random';
+            properties.NumPts = obj.num_samples;
+            properties.GridResolution = obj.integral_res;
+            properties.GridScale = 1;
+            properties = obj.parse_args_local( properties, varargin{:} ); % override defaults
+            
+            sample_points = obj.get_sample_points('SampleType', properties.SampleType,...
+                                                  'NumPts', properties.NumPts,...
+                                                  'GridResolution', properties.GridResolution,...
+                                                  'GridScale', properties.GridScale );
+
+            [ lifted_points , lifted_points_dot ] = obj.lift_points( sample_points );
+
+            obj.K_prods = obj.K_prods + lifted_points_dot' * lifted_points;% * properties.GridScale;
+            obj.K_norms = obj.K_norms + sum( lifted_points.^2 );% * properties.GridScale;
+
+            % update Koopman system matrix
+            K = obj.K_prods ./ obj.K_norms;
+            K_dis = expm( K * obj.timestep );
+            obj.Kmtx = K;
+        end
+
+        % Doesn't work well in current form
+        function [ obj , K , K_dis ] = improve_koopman_massmtx_grid_subset( obj , index_offsets )
+            %Improves the Koopman matrix by considering additional sample
+            %points in the inner product approximation
+            %Does this by taking samples from a subset of the grid defined
+            %by obj.grid_lines
+            
+            grid_mesh = cell(obj.params.n+obj.params.m, 1);
+            for i = 1 : obj.params.n
+                offset = index_offsets(i);
+                grid_lines_subset{i} = obj.grid_lines{i}(1+offset : floor(obj.num_samples/obj.integral_res) : end); 
+            end
+            for i = 1 : obj.params.m
+                offset = index_offsets(i+obj.params.n);
+                grid_lines_subset{i+obj.params.n} = obj.grid_lines{i+obj.params.n}(1+offset : floor(obj.num_samples/obj.integral_res) : end);
+            end
+            [grid_mesh{1:numel(grid_lines_subset)}] = ndgrid(grid_lines_subset{:}); %use comma-separated list expansion on both sides
+
+            % list out all points in grid mesh in one data matrix
+            sample_points = zeros( numel(grid_mesh{1}) , obj.params.n + obj.params.m );
+            for i = 1 : obj.params.n + obj.params.m
+                sample_points(:,i) = grid_mesh{i}(:);
+            end
+            
+            % lift all the points
+            [ lifted_points , lifted_points_dot ] = obj.lift_points( sample_points );
+
+            obj.K_prods = obj.K_prods + lifted_points_dot' * lifted_points;% * properties.GridScale;
+            obj.K_norms = obj.K_norms + sum( lifted_points.^2 );% * properties.GridScale;
+
+            % update Koopman system matrix
+            K = obj.K_prods ./ obj.K_norms;
+            K_dis = expm( K * obj.timestep );
+            obj.Kmtx = K;
+        end
+
+
         function sample_points = get_sample_points( obj , varargin )
             %get_sample_points: Sample over state/input space
             %   Name/value pairs
@@ -514,6 +779,69 @@ classdef Klift
 
             % compute error over all samples
             error = sum( vecnorm(lifted_points_dot(:,1:obj.params.n) - estimate_lifted_points_dot(:,1:obj.params.n), 2, 2) ) / length(lifted_points_dot);
+        end
+
+        % USELESS
+        function result = num_fun_int( obj , fun , var, var_idx , lb , ub , res )
+            %num_fun_int Numerical integration on a function
+            %   NOTE: Not faster than num_sym_int (as hoped)!--USELESS      
+            %   Uses fixed-step to approximate integral over one (of
+            %   possibly several) symbolic variables
+            %       fun - function handle
+            %       var - variable to integrate over, 'x' or 'u'
+            %       var_idx - index of variable to integrate over in
+            %       state+input vector
+            %       lb - lower integration bound
+            %       ub - upper integration bound
+            %       res - resolution (# of rectangles)
+            digits(2);  % set precision used by vpa
+
+            xstep = linspace(lb,ub,res)';
+            dx = (ub-lb) / res;
+            height = sym( zeros(res,1) );
+            xin = obj.sys.x;
+            uin = obj.sys.u;
+            for i = 1:res
+                if strcmp(var,'x')
+                    xin(var_idx) = xstep(i);
+                elseif strcmp(var,'u')
+                    uin(var_idx) = xstep(i);
+                else
+                    error('Value of var input must be x or u');
+                end
+                height(i,:) = fun( xin , uin );
+            end
+%             height = subs( fun , var , xstep );
+
+            dx_vec = dx * ones( size(xstep) );
+%             result = dx_vec' * vpa( [ height(1)/2 ; height(2:end-1) ; height(end)/2 ] );    % trapezoid rule
+            result = dx_vec' * vpa( height );    % rectangle rule
+        end
+
+        function result = inner_product( obj , fun , var , lb , ub , res )
+
+            %inner_product Multidimentional numerical integration
+            %   Uses fixed-step to approximate integral over one (of
+            %   possibly several) symbolic variables
+            %       fun - symbolic expression
+            %       var - symbolic variable to integrate over
+            %       lb - lower integration bound
+            %       ub - upper integration bound
+            %       res - resolution (# of rectangles)
+            digits(2);  % set precision used by vpa
+            
+%             grid_lines = bsxfun(@plus,((ub(:)-lb(:))./(res-1))*[0:res-1],lb(:));
+            grid_lines = linspace( lb ,  ub , res );    % assumes same bounds for all states/inputs
+            grid_points = permn(grid_lines,obj.params.n + obj.params.m);
+
+            % evaluate fun on grid over domain
+            height = zeros(size(grid_points,1),1);
+            for i = 1 : size(grid_points,1)
+%                 height(i) = subs( fun , var.' , grid_points(i,:) );
+                height(i) = fun( grid_points(i,1:obj.params.n) , grid_points(i,obj.params.n+1:end));
+            end
+
+            result = sum(height);
         end
 
         % Monte Carlo Integrations (samples and lifts points)

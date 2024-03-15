@@ -12,34 +12,19 @@ err_data_tot = [];
 err_comb_tot = [];
 
 
+%% Load models
 
-%% Load in simple models (not arm models)
-
-% sys_name = 'elastic_pendulum';
-% sys_name = 'simple_linear';
-% sys_name = 'pendulum';
-% sys_name = 'pendulum_varlen';
-sys_name = 'cargo_crane_real';
-% sys_name = 'elastic_pendulum_damped';
+% real system model
+sys_name = 'pendulum_cart_real';
 
 % template system model
-% temp_sys_name = 'elastic_pendulum';
-% temp_sys_name = 'simple_linear';
-% temp_sys_name = 'pendulum';
-% temp_sys_name = 'pendulum_varlen';
-temp_sys_name = 'cargo_crane_temp';
-% temp_sys_name = 'elastic_pendulum_damped';
+temp_sys_name = 'pendulum_cart_temp';
 
 real_sys_name = sys_name;
 datafile_name = sys_name;
 
-% % Many to explain one system
-% temp_sys_name = sys_name;
-% real_sys_name = 'vanderpol';
-% datafile_name = 'vanderpol';
-
 load([ 'systems' , filesep , 'simulations_with_noise_025' , filesep , datafile_name , '.mat' ] );
-train_data = data(2:2);
+train_data = data(2:10);
 % train_data = data(1);
 for j = 1 : length(train_data)
     train_data{j}.t = train_data{j}.t(1:200,:);
@@ -51,7 +36,7 @@ for j = 1 : length(train_data)
     end
 end
 
-val_data = data(1); % DEBUG: should be data(10), but want to check overfitting
+val_data = data(1);
 for j = 1 : length(val_data)
     val_data{j}.t = val_data{j}.t;%(1:300,:);
     val_data{j}.u = val_data{j}.u;%(1:300,:);
@@ -64,14 +49,6 @@ end
 
 load([ 'systems' , filesep , temp_sys_name , '.mat' ] );
 sys_temp = sys;
-% sys_temp.x_domain = max(max(abs( train_data{1}.x ))) * [-1,1];
-% sys_temp.x_domain = [-2.5,2.5];
-
-% load([ 'systems' , filesep , real_sys_name , '.mat' ] );
-% sys_real = sys;
-% % sys_real.x_domain = max(max(abs( train_data{1}.x ))) * [-1,1];
-% sys_real.x_domain = [-2.5,2.5];
-
 
 % specify timestep in the data
 dt = data{1}.t(2) - data{1}.t(1);
@@ -86,7 +63,6 @@ Klift = Klift( sys_temp ,...
     'basis_type' , 'hermite' ,...
     'has_massmtx' , true ,...
     'num_samples' , 1e6 ,... % 4e6
-    'integral_res' , 10 ,... % how finely to discretize each dimension when approximating IPs
     'integration_type', 'montecarlo' ,...
     'timestep' , dt ... %1e-3 ...
     );
@@ -100,8 +76,6 @@ Kres = Kres( Klift , train_data, 'lasso' , 0.0);
 %% Compare the models
 
 comp_trial_data = val_data{1};
-% comp_trial_data.x = comp_trial_data.Q;    % create 'x' field for data (FOR ARMS)
-% comp_trial_data.x = [ comp_trial_data.y(:,end/2-2:end/2) , comp_trial_data.Q ];    % create 'x' field for data. For xyz_embed systems. DEBUG*******
 
 [ data_comb , data_phys , data_data ] = Kres.compare_models( comp_trial_data , 1);
 

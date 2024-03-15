@@ -145,53 +145,87 @@ classdef Kres
             B_dataonly = beta_dataonly_scaled * PCmtx(:,1:P); % DEBUG
             N = obj.kphys.params.Nfull;
             Kdata_trans = zeros(P); % DEBUG: zeros(N);
-            if obj.lasso == 0
-                Kdata_trans = pinv(A_data) * B_dataonly;   % Straight least squares instead of Lasso
-            else
-                for i = 1 : P   % DEBUG: was N before
-                    b_data = B_dataonly(:,i);
-                    Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', obj.lasso, 'Intercept',false );
-                end
-            end
+            if obj.lasso
+            % for i = 1 : P   % DEBUG: was N before
+            %     b_data = B_dataonly(:,i);
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 0, 'Intercept',false ); % No Lasso penalty
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 2e-3, 'Intercept',false ); % this number works well
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 1e-4, 'Intercept',false );
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 0.5e-4, 'Intercept',false ); % used for real arm system ****
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 1e-3, 'Intercept',false ); % this number works well for vanderpol model with limited data
+            %     Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', obj.lasso, 'Intercept',false ); % this number works well for vanderpol model with 10x data
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 5e-4, 'Intercept',false ); % this number works well for duffing model
+            % end
+            Kdata_trans = pinv(A_data) * B_dataonly;   % DEBUG: straight least squares instead of Lasso
             obj.K_data = Kdata_trans';
             obj.K_data = PCmtx(:,1:P) * obj.K_data * PCmtx(:,1:P)'; % DEBUG: make it NxN again (temporary)
             % obj.K_data(find(abs(obj.K_data)<1e-2)) = 0; % DEBUG: round small matrix elements down to zero
 
             % Split the training data
+            % alpha_half{1} = alpha(1:floor(end - end*(1/9)),:);
+            % alpha_half{2} = alpha(floor(end - end*(1/9))+1:end,:);
+            % beta_dataonly_half{1} = beta_dataonly(1:floor(end - end*(1/9)),:);
+            % beta_dataonly_half{2} = beta_dataonly(floor(end - end*(1/9))+1:end,:);
+            %
             alpha_half{1} = alpha(1:floor(end - end*(0.1)),:);
             alpha_half{2} = alpha(floor(end - end*(0.1))+1:end,:);
             beta_dataonly_half{1} = beta_dataonly(1:floor(end - end*(0.1)),:);
             beta_dataonly_half{2} = beta_dataonly(floor(end - end*(0.1))+1:end,:);
+            %
+            % alpha_half{1} = alpha;
+            % alpha_half{2} = alpha;
+            % beta_dataonly_half{1} = beta_dataonly;
+            % beta_dataonly_half{2} = beta_dataonly;
 
             alpha_half_scaled{1} = alpha_half{1} * obj.scaledown.res;   
             alpha_half_scaled{2} = alpha_half{2} * obj.scaledown.res;
             beta_dataonly_half_scaled{1} = beta_dataonly_half{1} * obj.scaledown.res;
             beta_dataonly_half_scaled{2} = beta_dataonly_half{2} * obj.scaledown.res;
+            % alpha_scaled_half{1} = alpha_scaled(1:floor(end - end/2),:);
+            % alpha_scaled_half{2} = alpha_scaled(floor(end - end/2)+1:end,:);
+            % beta_scaled_dataonly_half{1} = beta_dataonly_scaled(1:floor(end - end/2),:);
+            % beta_scaled_dataonly_half{2} = beta_dataonly_scaled(floor(end - end/2)+1:end,:);
 
             % Identify data-driven model from just first half of the data (should put this in its own function)
             A_data = alpha_half_scaled{1} * PCmtx(:,1:P);   % DEBUG
             B_dataonly = beta_dataonly_half_scaled{1} * PCmtx(:,1:P); % DEBUG
             N = obj.kphys.params.Nfull;
             Kdata_trans = zeros(P); % DEBUG: zeros(N);
-            if obj.lasso == 0
-                Kdata_trans = pinv(A_data) * B_dataonly;   % DEBUG: straight least squares instead of Lasso
-            else
-                for i = 1 : P   % DEBUG: was N before
-                    b_data = B_dataonly(:,i);
-                    Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', obj.lasso, 'Intercept',false );
-                end
-            end
+            % for i = 1 : P   % DEBUG: was N before
+            %     b_data = B_dataonly(:,i);
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 0, 'Intercept',false ); % No Lasso penalty
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 2e-3, 'Intercept',false ); % this number works well
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 1e-4, 'Intercept',false );
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 0.5e-4, 'Intercept',false ); % used for real arm system ****
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 1e-3, 'Intercept',false ); % this number works well for vanderpol model with limited data
+            %     Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', obj.lasso, 'Intercept',false ); % this number works well for vanderpol model with 10x data
+            %     % Kdata_trans(:,i) = lasso( A_data, b_data, 'Lambda', 5e-4, 'Intercept',false ); % this number works well for duffing model
+            % end
+            Kdata_trans = pinv(A_data) * B_dataonly;   % DEBUG: straight least squares instead of Lasso
             obj.K_data_half = Kdata_trans';
             obj.K_data_half = PCmtx(:,1:P) * obj.K_data_half * PCmtx(:,1:P)'; % DEBUG: make it NxN again (temporary)
             
             % Define K_residual: Residual Koopman matrix
             obj.K_residual = obj.scaleup.res * obj.K_data_half * obj.scaledown.res - obj.K_phys;
+            % obj.K_residual = obj.scaleup.res * obj.K_data * obj.scaledown.res - obj.K_phys;
+
+            % obj.K_data = obj.K_data_half; % DEBUG, only letting the data driven model use half the data
 
             % Identify the optimal weight for the residual matrix
             lambda = obj.get_residual_weight( obj.K_phys, obj.K_residual, alpha_half{2}, beta_dataonly_half{2} );
+            % lambda = obj.get_residual_weight( obj.K_phys, obj.K_residual, alpha_half_scaled{2}, beta_dataonly_half_scaled{2} );
+            % lambda = obj.get_residual_weight( obj.K_phys, obj.K_residual, alpha_scaled, beta_dataonly_scaled );
+            % lambda = obj.get_residual_weight( obj.K_phys, obj.K_residual, alpha, beta_dataonly );
 
             % Define K_combined: model that combines the physics-based and residual models
+            % obj.K_combined = ( obj.scaleup.res * obj.K_residual * obj.scaledown.res + obj.scaleup.z * obj.K_phys * obj.scaledown.z );
+            % obj.K_combined = ( obj.scaleup.res_err * obj.K_residual * obj.scaledown.res + (PCmtx*PCmtx') * obj.scaleup.z * obj.K_phys * obj.scaledown.z * (PCmtx*PCmtx') );  % added the PCmtx transform to the physics-based part
+            % obj.K_combined = ( obj.K_residual + (PCmtx(:,1:P)*PCmtx(:,1:P)') * obj.scaleup.z * obj.K_phys * obj.scaledown.z * (PCmtx(:,1:P)*PCmtx(:,1:P)') );  % added the PCmtx transform to the physics-based part, and do scaling of K_residual before here
             obj.K_combined = obj.K_phys + lambda * obj.K_residual;
+
+            % % DEBUG: replaced K_combined with a matrix that multiplies K_phys rather than adding to it
+            % poop_trans = pinv(alpha * obj.K_phys') * beta_dataonly;
+            % obj.K_combined = poop_trans' * obj.K_phys;
         end
 
         function obj = get_lti_models( obj )

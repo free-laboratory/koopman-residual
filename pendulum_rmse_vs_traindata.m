@@ -1,4 +1,4 @@
-% pendulum_model_comparison
+% pendulum_cart_model_comparison
 %
 % Identifies Koopman models for simple nonlinear model and compares their
 % predictions.
@@ -18,28 +18,14 @@ err_comb_tot = [];
 
 %% Load in simple models (not arm models)
 
-% sys_name = 'elastic_pendulum';
-% sys_name = 'simple_linear';
-% sys_name = 'pendulum';
-% sys_name = 'pendulum_varlen';
-sys_name = 'cargo_crane_real';
-% sys_name = 'elastic_pendulum_damped';
+% real system model
+sys_name = 'pendulum_cart_real';
 
 % template system model
-% temp_sys_name = 'elastic_pendulum';
-% temp_sys_name = 'simple_linear';
-% temp_sys_name = 'pendulum';
-% temp_sys_name = 'pendulum_varlen';
-temp_sys_name = 'cargo_crane_temp';
-% temp_sys_name = 'elastic_pendulum_damped';
+temp_sys_name = 'pendulum_cart_temp';
 
 real_sys_name = sys_name;
 datafile_name = sys_name;
-
-% % Many to explain one system
-% temp_sys_name = sys_name;
-% real_sys_name = 'vanderpol';
-% datafile_name = 'vanderpol';
 
 load([ 'systems' , filesep , 'simulations_with_noise_025' , filesep , datafile_name , '.mat' ] );
 

@@ -17,23 +17,15 @@ for i = 2:10 %[2:3,5,7:10]  %2:10
 
     %% Load in simple models (not arm models)
 
+    % real system
     sys_name = [ 'vanderpol(', num2str(i), ')' ];
-    % sys_name = 'vanderpol(2)';
 
-    % One to explain many systems
+    % temp model
     temp_sys_name = 'vanderpol';
-    % temp_sys_name = sys_name;
+
     real_sys_name = sys_name;
     datafile_name = sys_name;
-
-    % % Many to explain one system
-    % temp_sys_name = sys_name;
-    % real_sys_name = 'vanderpol';
-    % datafile_name = 'vanderpol';
-
-    % datafile_name = 'vanderpol(2)_2024-02-15_17-50'; % DEBUG: manual override to try with noise
-    % datafile_name = 'vanderpol(4)_2024-02-15_18-15'; % DEBUG: manual override to try with noise
-    % datafile_name = 'vanderpol(7)_2024-02-15_18-29'; % DEBUG: manual override to try with noise   
+  
     load([ 'systems' , filesep , 'simulations_with_noise_025' , filesep , datafile_name , '.mat' ] );
     train_data = data(1:9);
     % train_data = data(1);
@@ -80,7 +72,6 @@ for i = 2:10 %[2:3,5,7:10]  %2:10
         'basis_type' , 'hermite' ,...
         'has_massmtx' , true ,...
         'num_samples' , 1e4 ,...
-        'integral_res' , 10 ,... % how finely to discretize each dimension when approximating IPs
         'timestep' , dt ... %1e-3 ...
         );
 
@@ -93,9 +84,7 @@ for i = 2:10 %[2:3,5,7:10]  %2:10
     %% Compare the models
 
     comp_trial_data = val_data{1};
-    % comp_trial_data.x = comp_trial_data.Q;    % create 'x' field for data (FOR ARMS)
-    % comp_trial_data.x = [ comp_trial_data.y(:,end/2-2:end/2) , comp_trial_data.Q ];    % create 'x' field for data. For xyz_embed systems. DEBUG*******
-
+ 
     [ data_comb{i} , data_phys{i} , data_data{i} ] = Kres.compare_models( comp_trial_data );
 
     %% Quantify the overall error

@@ -20,7 +20,7 @@ for ii = 1:9    % iterate through data amounts
     err_data_run = [];
     err_comb_run = [];
 
-    for i = 2:10   % iterate through system versions
+    for i = 2:10 %[2:3,5,7:10]   % iterate through system versions
 
         %% Load in simple models (not arm models)
 
@@ -117,6 +117,11 @@ for ii = 1:9    % iterate through data amounts
         err_phys_run = [ err_phys_run ; data_phys{ii}{i}.x - comp_trial_data.x ];
         err_data_run = [ err_data_run ; data_data{ii}{i}.x - comp_trial_data.x ];
         err_comb_run = [ err_comb_run ; data_comb{ii}{i}.x - comp_trial_data.x ];
+
+        % % running ledger of error across all systems
+        % err_phys_tot = [ err_phys_tot ; data_phys{ii}{i}.x - comp_trial_data.x ];
+        % err_data_tot = [ err_data_tot ; data_data{ii}{i}.x - comp_trial_data.x ];
+        % err_comb_tot = [ err_comb_tot ; data_comb{ii}{i}.x - comp_trial_data.x ];
 
         % % plot phase space
         % figure; plot( comp_trial_data.x(:,1), comp_trial_data.x(:,2) );
