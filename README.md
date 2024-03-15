@@ -69,7 +69,8 @@ Based on the arguments defined above, the class constructor function will define
 
 The 'systems' folder contains sys objects for Van der Pol oscillator systems with the following dynamics:
 
-$\begin{bmatrix} \dot{x}_1 (t) \\ \dot{x}_2 (t) \end{bmatrix} = \begin{bmatrix} x_2 (t) \\ \mu \left( 1 - x_1 (t)^2 \right) x_2 (t) - x_1 (t) \end{bmatrix} `$
+$`\begin{bmatrix} \dot{x}_1 (t) \\ \dot{x}_2 (t) \end{bmatrix} =
+\begin{bmatrix} x_2 (t) \\ \mu \left( 1 - x_1 (t)^2 \right) x_2 (t) - x_1 (t) \end{bmatrix}
 
 It also contains simulated data of the Van der Pol systems starting from various initial conditions. Running vanderpol_rmse_vs_traindata.m will go through the process of identifying physics-based, data-driven, and combined models for these systems, and compare the accuracy of their predictions for different amounts of training data.
 
