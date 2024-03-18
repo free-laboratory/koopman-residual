@@ -69,8 +69,10 @@ Based on the arguments defined above, the class constructor function will define
 
 The 'systems' folder contains sys objects for Van der Pol oscillator systems with the following dynamics:
 
-$`\begin{bmatrix} \dot{x}_1 (t) \\ \dot{x}_2 (t) \end{bmatrix} =
+```math
+\begin{bmatrix} \dot{x}_1 (t) \\ \dot{x}_2 (t) \end{bmatrix} =
 \begin{bmatrix} x_2 (t) \\ \mu \left( 1 - x_1 (t)^2 \right) x_2 (t) - x_1 (t) \end{bmatrix}
+```
 
 It also contains simulated data of the Van der Pol systems starting from various initial conditions. Running vanderpol_rmse_vs_traindata.m will go through the process of identifying physics-based, data-driven, and combined models for these systems, and compare the accuracy of their predictions for different amounts of training data.
 
@@ -78,7 +80,7 @@ It also contains simulated data of the Van der Pol systems starting from various
 
 The 'systems' folder contains sys objects for pendulum on a cart systems with the following dynamics:
 
-$$
+```math
 \begin{bmatrix} \dot{x}_1 \\ \\ \dot{x}_2 \end{bmatrix}
     =
     \begin{bmatrix}
@@ -87,8 +89,7 @@ $$
             -\frac{g}{l}\sin{x_1  } - \frac{c_d}{ml^2} x_2   - \frac{\cos{x_1  }}{l(M+m)} \left( u + ml \sin{x_1  } x_2  ^2 \right)
         }{(1- \frac{m \cos^2{x_1  ^2}}{M+m})}
     \end{bmatrix}
-
-$$
+```
 
 The folder also contains simulated data of the pendulum on a cart systems starting from various initial conditions. Running pendulum_rmse_vs_traindata.m will go through the process of identifying physics-based, data-driven, and combined models for the 'pendulum_cart_real' system, and compare the accuracy of their predictions for different amounts of training data.
 
