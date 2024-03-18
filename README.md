@@ -60,8 +60,8 @@ Based on the arguments defined above, the class constructor function will define
 * K_phys - The discrete-time physics-based Koopman matrix (equivalent to Klift_instance.Kdis)
 * K_data - The discrete-time data-driven Koopman matrix, approximated from the provided training data
 * K_combined - The discrete-time combined Koopman matrix, approximated from the training data and K_phys
-* K_res - The residual Koopman matrix, defined as
-* lambda - The ... TODO, fill in based on changes to the manuscripte
+* K_res - The residual Koopman matrix
+* lambda - The residual weighting factor
 
 ## Examples
 
