@@ -2,7 +2,7 @@
 
 ## How to define a nonlinear system model
 
-A physics-based Koopman model is based off of a nonlinear dynamical system model of the form, $M(x)\dot{x} = f(x,u)$. We define such a model as a `sys` object, which is a We store the information that is needed to construct a Koopman model as a struct with the following fields:
+A physics-based Koopman model is based off of a nonlinear dynamical system model of the form, $M(x)\dot{x} = f(x,u)$. We define such a model as a `sys` object. We store the information that is needed to construct a Koopman model as a struct with the following fields:
 
 ```apache
 sys = struct;

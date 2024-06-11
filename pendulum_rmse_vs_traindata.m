@@ -156,5 +156,6 @@ xlabel('Training Data Snapshots');
 ylabel('RMSE');
 xlim([start_data,(ii-1)*inc_data+start_data]);
 legend('Physics-based','Data-driven','Combined');
+set(gcf, 'Position',  [100, 100, 500, 250]);    % change aspect ratio of plot
 
 
